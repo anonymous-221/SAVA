@@ -70,23 +70,6 @@ class DataSpec(object):
         self.rescale = rescale
 
 
-def alexnet_spec(batch_size=500):
-    """Parameters used by AlexNet and its variants."""
-    return DataSpec(
-        batch_size=batch_size,
-        scale_size=256,
-        crop_size=227,
-        isotropic=False)
-
-
-def ensemble_spec():
-    return DataSpec(
-        batch_size=1,
-        scale_size=224,
-        crop_size=224,
-        isotropic=False)
-
-
 def inception_spec(batch_size=25, crop_size=299, bgr=False):
     """Parameters used by Inception and its variants."""
     return DataSpec(batch_size=batch_size,
@@ -112,57 +95,21 @@ def std_spec(batch_size, isotropic=True):
 
 # Collection of sample auto-generated models
 _LABEL_MAP_PATH = 'kinetics-i3d/data/label_map.txt'
-str2Model = {
-    "AlexNet": AlexNet,
-    "CaffeNet": CaffeNet,
-    "GoogleNet": GoogleNet,
-    "NiN": NiN,
-    "ResNet50": ResNet50,
-    "ResNet101": ResNet101,
-    "ResNet152": ResNet152,
-    "VGG16": VGG16}
-MODELS = (
-    AlexNet,
-    CaffeNet,
-    GoogleNet,
-    NiN,
-    ResNet50,
-    ResNet101,
-    ResNet152,
-    VGG16)
+
 
 # The corresponding data specifications for the sample models
 # These specifications are based on how the models were trained.
 # The recommended batch size is based on a Titan X (12GB).
 MODEL_DATA_SPECS = {
-    "AlexNet": alexnet_spec(),
-    "CaffeNet": alexnet_spec(),
-    "GoogleNet": std_spec(batch_size=25, isotropic=False),
-    "ResNet50": std_spec(batch_size=25),
-    "ResNet101": std_spec(batch_size=25),
-    "ResNet152": std_spec(batch_size=25),
-    "NiN": std_spec(batch_size=500),
-    "VGG16": std_spec(batch_size=25),
-    "Inception": inception_spec(batch_size=25, crop_size=299),
     "Inception2": inception_spec(batch_size=25, crop_size=224),
-    "ensemble": ensemble_spec(),
     "i3d_inception":inception_spec(batch_size=25, crop_size=224),
-    "vgg16_lstm" : inception_spec(batch_size=25, crop_size=224),
     "I3V":inception_spec(batch_size=25, crop_size=224),
     "LSTM":inception_spec(batch_size=25, crop_size=224),
     "i3d": inception_spec(batch_size=25, crop_size=224)
  
 }
 
-MODEL_PATHES = {
-    "AlexNet": "models/AlexNet.npy",
-    "CaffeNet": "models/CaffeNet.npy",
-    "GoogleNet": "models/GoogleNet.npy",
-    "ResNet50": "models/ResNet50.npy",
-    "ResNet101": "models/ResNet101.npy",
-    "ResNet152": "models/ResNet152.npy",
-    "VGG16": "models/VGG16.npy"
-}
+
 
 CKPT_PATHES = {
     
@@ -172,22 +119,8 @@ CKPT_PATHES = {
     
     "HMDB51_I3V":"checkpoints/HMDB51/I3V/inception.019-2.16.hdf5",
     "UCF101_I3V": "checkpoints/UCF101/I3V/inception.014-1.04.hdf5",
-    "i3d_imagenet": "data/checkpoints/rgb_imagenet/model.ckpt"
+   
 }
-INPUT_DIMS = {
-    "resnet" : 50,
-    "i3d": 250,
-    "c3d": 16,
-    "tsn": 3
-    
-}
-
-
-def get_models():
-    """Returns a tuple of sample models."""
-    return MODELS
-
-
 def get_model_path(model_name):
     return MODEL_PATHES[model_name]
 
@@ -197,31 +130,8 @@ def get_data_spec(model_name):
     return MODEL_DATA_SPECS[model_name]
 
 
-def get_model_i3(class_no):
-    # create the base pre-trained model
-    base_model = InceptionV3(weights='imagenet', include_top=False)
-
-    # add a global spatial average pooling layer
-    x = base_model.output
-    x = GlobalAveragePooling2D()(x)
-    # let's add a fully-connected layer
-    x = Dense(1024, activation='relu')(x)
-    # and a logistic layer -- let's say we have 2 classes
-    predictions = Dense(class_no, activation='softmax')(x)
-
-    # this is the model we will train
-    model = Model(inputs=base_model.input, outputs=predictions)
-
-    for layer in base_model.layers:
-        layer.trainable = False
-
-    # compile the model (should be done *after* setting layers to non-trainable)
-    model.compile(optimizer='rmsprop', loss='categorical_crossentropy', metrics=['accuracy'])
-
-    return model
-
 def get_model(sess, input_node, model_name,data_set_name, device=None):
-    if model_name in ["GoogleNet","ResNet50","ResNet101","ResNet152","VGG16","Inception","Inception2"]:
+    if model_name == "Inception2":
     
         _,seq_len, _, _, _ = input_node.get_shape()
         seq_len = seq_len.value
@@ -337,8 +247,7 @@ def get_model(sess, input_node, model_name,data_set_name, device=None):
         
         
     else:
-        #kinetics_classes = [x.strip() for x in open(_LABEL_MAP_PATH)]
-        #rescaled_input_node = tf.image.resize_bilinear(input_node[:, 0, :, :, :], [224, 224])
+      
         start_variable_set = set(tf.all_variables())
         with tf.variable_scope('RGB'):
             if data_set_name =="UCF101":
@@ -396,115 +305,6 @@ def get_model(sess, input_node, model_name,data_set_name, device=None):
             
         return rgb_fc_out ,rgb_variable_set, prediction
 
-
-def get_model3(sess, input_node, model_name, device=None):
-    print ('Getting model def', model_name)
-    start_variable_set = set(tf.all_variables())
-    if model_name == 'Inception':
-        end_node = get_inception(input_node)
-    elif model_name == 'Inception2':
-        # swap_rgb = tf.reverse(input_node, [False, False, True])
-        rescaled_input_node = tf.image.resize_bilinear(input_node, [299, 299])
-        end_node = get_inception(rescaled_input_node)
-    else:
-        all_models = MODELS
-        net_class = [
-            model for model in all_models if model.__name__ == model_name][0]
-        net = net_class({'data': input_node})
-        end_node = net.get_output()
-        end_node2 = tf.argmax(end_node,1)
-
-    end_variable_set = set(tf.all_variables())
-    variable_set = end_variable_set - start_variable_set
-    print ('Loading prarameters')
-    saver = tf.train.Saver(variable_set)
-    ckpt_dir = CKPT_PATHES[model_name]
-    print ('Checkpoint dir', ckpt_dir)
-    saver.restore(sess, ckpt_dir)
-    print ('Loaded prarameters')
-    return end_node, variable_set, end_node2
-
-def get_model2(sess, input_node, model_name, device=None):
-    print ('Getting model def', model_name)
-    start_variable_set = set(tf.all_variables())
-    if model_name == 'Inception':
-        end_node, end_node2 = get_inception2(input_node)
-    elif model_name == 'Inception2':
-        rescaled_input_node = tf.image.resize_bilinear(input_node, [299, 299])
-        end_node, end_node2 = get_inception2(rescaled_input_node)
-    else:
-        all_models = MODELS
-        net_class = [
-            model for model in all_models if model.__name__ == model_name][0]
-        net = net_class({'data': input_node})
-        end_node = net.get_output()
-        if model_name == 'VGG16':
-            end_node2 = net.layers['fc8']
-        elif model_name == 'GoogleNet':
-            end_node2 = net.layers['loss3_classifier']
-        else:
-            end_node2 = net.layers['fc1000']
-    end_variable_set = set(tf.all_variables())
-    variable_set = end_variable_set - start_variable_set
-    print ('Loading prarameters')
-    saver = tf.train.Saver(variable_set)
-    ckpt_dir = CKPT_PATHES[model_name]
-    print ('Checkpoint dir', ckpt_dir)
-    saver.restore(sess, ckpt_dir)
-    print ('Loaded prarameters')
-    return end_node, end_node2
-
-
-def get_inception(images):
-    return inception_model.inference(images=images, num_classes=1000 + 1)
-
-
 def get_inception2(images):
     return inception_model.inference2(images=images, num_classes=1000 + 1)
 
-
-def inception_load_parameters(sess, var_list=None):
-    saver = tf.train.Saver(var_list)
-    ckpt_dir = 'models/inception/checkpoint'
-    ckpt = tf.train.get_checkpoint_state(ckpt_dir)
-    if ckpt and ckpt.model_checkpoint_path:
-        print (ckpt.model_checkpoint_path)
-        saver.restore(sess, ckpt.model_checkpoint_path)
-
-        # Assuming model_checkpoint_path looks something like:
-        #   /my-favorite-path/imagenet_train/model.ckpt-0,
-        # extract global_step from it.
-        global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
-        print('Succesfully loaded model from %s at step=%s.' %
-              (ckpt.model_checkpoint_path, global_step))
-    else:
-        print('No checkpoint file found')
-        return
-
-
-def save_all_as_checkponits():
-    # Now this function only save ckpt file for GoogleNet,
-    # TODO: Save ckpt for all 9 networks
-    for model_name in ["GoogleNet"]:
-        if not tf.train.checkpoint_exists(CKPT_PATHES[model_name]):
-            print ("Checkpoint for " + model_name + " has not been created yet, creating checkpoint...")
-            spec = get_data_spec(model_name)
-            input_node = tf.placeholder(
-                tf.float32,
-                shape=(
-                    None,
-                    spec.crop_size,
-                    spec.crop_size,
-                    spec.channels))
-            net = str2Model[model_name]({'data': input_node})
-            with tf.Session() as sesh:
-                net.load(get_model_path(model_name), sesh)
-                saver = tf.train.Saver()
-                save_path = saver.save(sesh, CKPT_PATHES[model_name])
-                print(
-                    model_name +
-                    " Model checkpoint saved in file: %s" %
-                    save_path)
-
-
-#save_all_as_checkponits()
