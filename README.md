@@ -10,7 +10,9 @@ HMDB51 can be downloaded as RGB images in https://github.com/feichtenhofer/twost
 UCF101 data need to be  stored under UCF101/video_data/test 
 HMDB51 data need to be stored under HMDB51/video_data/test
 ## checkpoints
-The checkpoints for UCF101 LSTM+CNN can be downloaded in 
+The checkpoints for UCF101 LSTM+CNN can be downloaded in https://github.com/yanhui002/video_adv
+
+Please download the checkpoints for I3D and  I3V for UCF101 and HMDB from https://www.dropbox.com/sh/o8ub94d2ecnzrgk/AACnY6-iPHgiFpPm0FX_4DkLa?dl=0
 
 
 ## Generate adversarial examples
