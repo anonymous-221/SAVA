@@ -15,10 +15,7 @@ from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_i
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.optimizers import SGD, Adam, RMSprop
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from alexnet import AlexNet
-from caffenet import CaffeNet
-from nin import NiN
-from resnet import ResNet50, ResNet101, ResNet152
+
 from lstm import DynamicRNN
 from lstm import AveragePooling
 from keras_video_classifier.library.recurrent_networks import VGG16LSTMVideoClassifier
