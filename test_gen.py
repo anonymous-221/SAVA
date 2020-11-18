@@ -201,119 +201,6 @@ def toimage(arr, high=255, low=0, cmin=None, cmax=None, pal=None,
     image = Image.frombytes(mode, shape, strdata)
     return image
 
-
-def affine(img):
-    T = np.array([[0.1255,0.5642,20],[1.0041,0,10],[0,0,1]])
-    
-    height, width, channel = img.shape
-    
-    affine_img = tf.Variable(tf.zeros(( height, width, 3) ))#创建变换后图像
-    src_point = np.array([[0, 0, height-1 ], [0, width-1, 0], [1, 1, 1]])
-    
-    for x in range( height ):
-      
-        for y in range( width ):
-            src_image_point = [[ x, y,1 ]]
-            src_image_point_transpose = np.transpose( src_image_point )
-            
-            a = np.dot( T, src_image_point_transpose )
-            new_x, new_y= a[:2]
-            
-            tf.assign(affine_img[int(new_x),int(new_y),:] , img[x,y,:])
-            
-    return affine_img
-'''
-def rotate(images,angles):
-    
-    return tf.contrib.image.transform(
-    images,
-    tf.contrib.image.angles_to_projective_transforms(
-        angles, tf.cast(tf.shape(images)[0], tf.float32), tf.cast(tf
-            .shape(images)[1], tf.float32)
-    ))
-'''
-def rotate(image, angle, mode='repeat'):
-    """
-    Rotates a 3D tensor (HWD), which represents an image by given radian angle.
-
-    New image has the same size as the input image.
-
-    mode controls what happens to border pixels.
-    mode = 'black' results in black bars (value 0 in unknown areas)
-    mode = 'white' results in value 255 in unknown areas
-    mode = 'ones' results in value 1 in unknown areas
-    mode = 'repeat' keeps repeating the closest pixel known
-    """
-    s = image.get_shape().as_list()
-    assert len(s) == 3, "Input needs to be 3D."
-    assert (mode == 'repeat') or (mode == 'black') or (mode == 'white') or (mode == 'ones'), "Unknown boundary mode."
-    image_center = [np.floor(x/2) for x in s]
-
-    # Coordinates of new image
-    coord1 = tf.range(s[0])
-    coord2 = tf.range(s[1])
-
-    # Create vectors of those coordinates in order to vectorize the image
-    coord1_vec = tf.tile(coord1, [s[1]])
-
-    coord2_vec_unordered = tf.tile(coord2, [s[0]])
-    coord2_vec_unordered = tf.reshape(coord2_vec_unordered, [s[0], s[1]])
-    coord2_vec = tf.reshape(tf.transpose(coord2_vec_unordered, [1, 0]), [-1])
-
-    # center coordinates since rotation center is supposed to be in the image center
-    coord1_vec_centered = coord1_vec - image_center[0]
-    coord2_vec_centered = coord2_vec - image_center[1]
-
-    coord_new_centered = tf.cast(tf.stack ([coord1_vec_centered, coord2_vec_centered]), tf.float32)
-
-    # Perform backward transformation of the image coordinates
-    rot_mat_inv = tf.dynamic_stitch([[0], [1], [2], [3]], [[tf.cos(angle)], [tf.sin(angle)], [-tf.sin(angle)], [tf.cos(angle)]])
-    rot_mat_inv = tf.reshape(rot_mat_inv, shape=[2, 2])
-    coord_old_centered = tf.matmul(rot_mat_inv, coord_new_centered)
-
-    # Find nearest neighbor in old image
-    coord1_old_nn = tf.cast(tf.round(coord_old_centered[0, :] + image_center[0]), tf.int32)
-    coord2_old_nn = tf.cast(tf.round(coord_old_centered[1, :] + image_center[1]), tf.int32)
-
-    # Clip values to stay inside image coordinates
-    if mode == 'repeat':
-        coord_old1_clipped = tf.minimum(tf.maximum(coord1_old_nn, 0), s[0]-1)
-        coord_old2_clipped = tf.minimum(tf.maximum(coord2_old_nn, 0), s[1]-1)
-    else:
-        outside_ind1 = tf.logical_or(tf.greater(coord1_old_nn, s[0]-1), tf.less(coord1_old_nn, 0))
-        outside_ind2 = tf.logical_or(tf.greater(coord2_old_nn, s[1]-1), tf.less(coord2_old_nn, 0))
-        outside_ind = tf.logical_or(outside_ind1, outside_ind2)
-
-        coord_old1_clipped = tf.boolean_mask(coord1_old_nn, tf.logical_not(outside_ind))
-        coord_old2_clipped = tf.boolean_mask(coord2_old_nn, tf.logical_not(outside_ind))
-
-        coord1_vec = tf.boolean_mask(coord1_vec, tf.logical_not(outside_ind))
-        coord2_vec = tf.boolean_mask(coord2_vec, tf.logical_not(outside_ind))
-
-    coord_old_clipped = tf.cast(tf.transpose(tf.stack([coord_old1_clipped, coord_old2_clipped]), [1, 0]), tf.int32)
-
-    # Coordinates of the new image
-    coord_new = tf.transpose(tf.cast(tf.stack ([coord1_vec, coord2_vec]), tf.int32), [1, 0])
-
-    image_channel_list = tf.split(image, s[2], 2)
-
-    image_rotated_channel_list = list()
-    for image_channel in image_channel_list:
-        image_chan_new_values = tf.gather_nd(tf.squeeze(image_channel), coord_old_clipped)
-
-        if (mode == 'black') or (mode == 'repeat'):
-            background_color = 0
-        elif mode == 'ones':
-            background_color = 1
-        elif mode == 'white':
-            background_color = 255
-
-        image_rotated_channel_list.append(tf.sparse_to_dense(coord_new, [s[0], s[1]], image_chan_new_values,
-                                                             background_color, validate_indices=False))
-
-    image_rotated = tf.transpose(tf.stack(image_rotated_channel_list), [1, 2, 0])
-
-    return image_rotated
 def calc_gradients(
         test_file,
         data_set_name,
@@ -349,98 +236,13 @@ def calc_gradients(
     flows_var = tf.placeholder(tf.float32,shape=((1,2, spec.crop_size,spec.crop_size)))
     
     rotate_result = stadv.layers.flow_st( transformer(image_to_rotate,angle_to_rotate), flows_var, 'NHWC')
-    #flows = tf.placeholder(tf.float32, [seq_len, 2,spec.crop_size, spec.crop_size], name='flows')
+   
     flows = tf.Variable(np.zeros((seq_len,2, spec.crop_size,spec.crop_size),dtype=np.float32))
     tau = tf.placeholder_with_default(
         tf.constant(0., dtype=tf.float32),
         shape=[], name='tau'
     )
-    initial = np.array([
-        [1, 0, 0],
-        [0, 1, 0]
-    ])
-    
-    
-    initial_pi = np.array([
-        [np.cos(np.pi/5), -np.sin(np.pi/5), 0.1],
-        [np.sin(np.pi/5), np.cos(np.pi/5), 0.1]
-    ])
-    initial_pi = tf.reshape(initial_pi.astype('float32').flatten(),(6,1))
-    initial = tf.reshape(initial.astype('float32').flatten(),(6,1))
-    x_trans = tf.reshape(input_image,[-1,spec.crop_size*spec.crop_size*spec.channels])
-    # localization network
-    #W_fc1 = tf.Variable(initial_value=initial_pi)
-    b_fc1 = tf.Variable(initial_value=initial)
-    
-    
-    
-    b_1 = tf.Variable(np.zeros(shape = (seq_len)),dtype=np.float32)
-    b_2 = tf.Variable(np.zeros(shape = (seq_len)),dtype=np.float32)
-    
-    #W_fc1 = [[tf.cos(theta),-tf.sin(theta),0.2*tf.tanh(b_1)],[tf.sin(theta),tf.cos(theta),0.2*tf.tanh(b_2)]]
-    
-    #W_fc1 = tf.reshape( W_fc1,(6,1))
-    '''
-    b_fc_loc1 = tf.Variable(tf.random_normal([10], mean=0.0, stddev=0.01))
-    W_fc_loc2 = tf.Variable(tf.zeros([10, 6]))
-    h_fc_loc1 = tf.nn.tanh(tf.matmul(x_trans, W_fc1) + b_fc_loc1)
-    h_fc_loc1_drop = tf.nn.dropout(h_fc_loc1, 1)
-    '''
-   
-    
-    #angle = tf.nn.tanh(tf.matmul(h_fc_loc1_drop, W_fc_loc2) + b_fc2)
-    #angle = tf.nn.tanh(tf.matmul(x_trans, W_fc1)+ b_fc1)
-    #angle = tf.expand_dims(b_fc1,0)
-    
-    #angle = tf.Variable(tf.random.uniform(shape = (seq_len,), minval = -np.pi / 4, maxval = np.pi / 4))
-    #angle = tf.Variable(tf.random.uniform(shape = (seq_len,), minval = -10, maxval = 10))
-    #angle = tf.Variable(0.1*np.ones(( seq_len,),dtype=np.float32))
-    
-    # temporal mask, 1 indicates the selected frame
-    #indicator = [0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0]
     indicator = tf.placeholder(tf.float32,shape=(seq_len))
-    #theta = theta * indicator
-    #indicator = [0,0,1,1,1,0,0,0,0,0]
-    #indicator = np.reshape(indicate,(1,10))
-    #indicator = tf.Variable(np.random.randint(1,4,(1,seq_len)),
-    #dtype=np.int64)
-    #where(t > 0, tf.ones((seq_len,1)), tf.zeros((seq_len,1)))
-    #indicator= np.reshape(np.repeat(
-       #indicator, (6), axis=0),(seq_len,6))
-    #indicator = tf.Variable(tf.random.uniform(shape = (1,seq_len), minval = 0,  maxval = 3),constraint = lambda t: tf.where(t > 0, tf.ones((1,seq_len)), tf.zeros((1,seq_len))))
-
-    # spatial transformer layer
-    #h_trans = transformer(x, h_fc1)
-    #true_image = tf.minimum(tf.maximum(modifier[0,0,:,:,:]+transformer(tf.expand_dims(input_image[0,0,:,:,:]*255.0,0),angle[0]), -spec.mean+spec.rescale[0]), -spec.mean+spec.rescale[1])/255.0
-    #true_image = tf.minimum(tf.maximum(modifier[0,0,:,:,:]+input_image[0,0,:,:,:]*255.0, -spec.mean+spec.rescale[0]), -spec.mean+spec.rescale[1])/255.0
-    #ind = tf.reshape(angle,(seq_len,6))*indicator
-    #true_image = tf.minimum(tf.maximum(transformer(tf.expand_dims(input_image*255.0,0),angle), -spec.mean+spec.rescale[0]), -spec.mean+spec.rescale[1])/255.0
-    #angle = tf.transpose(tf.matmul(W_fc1,tf.cast(indicator,tf.float32))) + tf.transpose(tf.matmul(b_fc1,tf.cast(1-indicator,tf.float32)))
-    '''
-    indicat= tf.repeat(
-        indicator, (2), axis=0
-    )
-    indicat= tf.repeat(
-        indicat, (spec.crop_size), axis=0
-    )
-    indicat= tf.repeat(
-        indicat, (spec.crop_size), axis=0
-    )
-    indicate= tf.repeat(
-        indicator, (spec.crop_size), axis=0
-    )
-    indicate= tf.repeat(
-        indicate, (spec.crop_size), axis=0
-    )
-    indicate= tf.reshape(tf.repeat(
-        indicate, (3), axis=0
-    ),(seq_len, spec.crop_size,spec.crop_size,spec.channels))
-    indicat = tf.reshape(indicat,(seq_len, 2,spec.crop_size, spec.crop_size))
-    '''
-    #flows = indicat * flows
-    #modifier = tf.cast(indicate,tf.float32) * modifier
-    
-    
     for ll in range(seq_len):
         #if indicator[ll] == 1:
             #the = theta[ll]*indicator[ll]
@@ -479,21 +281,18 @@ def calc_gradients(
         true_image = tf.concat([true_image, true_image_temp],0)
     
     loss2_l12 = tf.reduce_sum(tf.sqrt(tf.reduce_mean(tf.square(true_image-input_image), axis=[0, 2, 3, 4])))
-    #loss2 = tf.reduce_sum(tf.sqrt(tf.reduce_mean(tf.square(true_image-input_image), axis=[0, 2, 3, 4])))
+    
     loss2 =  tf.reduce_sum(1-tf.image.ssim_multiscale(true_image, input_image, max_val=1.0))
     #loss2 = 1.0 - tf.reduce_mean(SSIM(true_image).cw_ssim_value(input_image))
     
     norm_frame = tf.reduce_mean(tf.abs(modifier), axis=[2,3,4])
     gpu_options = tf.GPUOptions(allow_growth=True)
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-    #input_probs, _, input_pre_label,input_ince_output, input_pre_node = models.get_model(sess, input_image, model_name, False)
+   
     probs, variable_set, pre_label = models.get_model(sess, true_image, model_name,data_set_name, False)
     true_label_prob = tf.reduce_sum(probs*tf.one_hot(input_label,class_no),[1])
     if model_name == 'i3d_inception':
           true_label_prob = tf.reduce_mean(probs*tf.one_hot(input_label,class_no))
-       #input_true_label_prob = tf.reduce_sum(input_probs*tf.one_hot(input_label,101),[1])
-      
-    #input_true_label_prob = tf.reduce_sum(input_probs*tf.one_hot(input_label,101),[1])
     if targets is None:
         #loss1 = tf.maximum(0.0,true_label_prob)
         loss1 = -tf.log(1 - true_label_prob + 1e-6)
@@ -506,21 +305,8 @@ def calc_gradients(
    
     
     grad_op = tf.gradients(loss,theta)
-    #很不稳定变化很大忽上忽下
-    #optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-    #一直下降就是很慢
-    #optimizer = tf.train.AdadeltaOptimizer(learning_rate=1)
-    #grad = tf.gradients(loss,indicator )
-    #变化大
-    #optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate,momentum=0.9)
-    #变化大稍微好一点
-    #optimizer= tf.train.MomentumOptimizer(learning_rate=0.01,momentum=0.9, use_nesterov=True)
-    #optimizer=tf.train.AdagradOptimizer(learning_rate=1,initial_accumulator_value=0.01)
+  
     optimizer = tf.train.AdamOptimizer(learning_rate)
-    #忽上忽下变化大
-    #optimizer = tf.train.RMSPropOptimizer(learning_rate=1, decay=0.9, momentum=0.9)
-    #忽上忽下变化大
-    #optimizer =tf.train.RMSPropOptimizer(learning_rate=1, decay=0.9)
     print('optimizer.minimize....')
     
     train = optimizer.minimize(loss, var_list=[modifier,flows])
@@ -616,9 +402,10 @@ def calc_gradients(
         print(index)
         mask = np.zeros((seq_len))
         mask[index] =1
-        
+        ######## without BO selection ##############
         #mask = [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         #mask=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ###### select four frames by BO###########
         '''
         ind1,ind2,ind3,ind4 = ba_op_4(train,init_varibale_list,true_label_prob,seq_len,indicator,f,feed_dict={input_image: images[0:seq_len], input_label: labels, tau: 0.05},sess=sess)
         mask = np.zeros((seq_len))
@@ -627,71 +414,6 @@ def calc_gradients(
         '''
         print(mask)
         sess.run(tf.initialize_variables(init_varibale_list))
-        #sa = my_sa(loss_mask, seq_len,indicator,theta,feed_dict={input_image: images[0:seq_len], input_label: labels, tau: 0.05},sess=sess)
-        #Updat GA for angle and Mask
-        '''
-        ga = gen_a(loss_mask, seq_len,indicator,theta,ga_extra_kwargs={'max_iter':50},feed_dict={input_image: images[0:total_len], input_label: labels, tau: 0.05},
-            sess=sess)
-        
-        
-        print('best_mask',ga['mask'],'angle',ga['angle'],'Loss',ga['loss'],'time',time.time()-ge_time,file=f)
-        feed_dict = {input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:ga['mask'],theta:ga['angle']}
-        '''
-        '''
-        ga = gen_am(loss_mask, seq_len,indicator,ga_extra_kwargs={'max_iter':20},feed_dict={input_image: images[0:seq_len], input_label: labels, tau: 0.05,theta:np.random.normal(0,np.pi/3,(seq_len))},
-            sess=sess)
-        
-        
-        print('best_mask',ga['mask'],'Loss',ga['loss'],'time',time.time()-ge_time,file=f)
-        '''
-        
-        
-        '''
-        sa = sa_tsp(loss_mask, seq_len,indicator,feed_dict={input_image: images[0:total_len], input_label: labels, tau: 0.05,theta:np.random.normal(0,np.pi/3,(seq_len))},
-        sess=sess)
-        print('best_mask',sa['mask'],'Loss',sa['loss'],'time',time.time()-ge_time)
-        fig, ax = plt.subplots()
-        best_points_ = np.concatenate([sa['mask'], [sa['mask'][0]]])
-        ax[0].plot(sa.best_y_history)
-        ax[0].set_xlabel("Iteration")
-        ax[0].set_ylabel("Distance")
-        plt.savefig('./test.jpg')
-        plt.show()
-        '''
-        
-        '''
-        results_theta = stadv.optimization.lbfgs(
-            loss,
-            theta,
-            # random initial guess for the flow
-            flows_x0=np.random.random_sample((seq_len)),
-            feed_dict={input_image: images[0:total_len], input_label: labels, tau: 0.05,indicator:indicator_ini},
-            grad_op=grad_op,
-            fmin_l_bfgs_b_extra_kwargs={'maxfun':15000},
-            sess=sess
-        )
-        print("Final loss:", results_theta['loss'])
-        print("Optimization info:", results_theta['info'])
-        '''
-        #feed_dict = {input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:sa['mask'],theta:results_theta['flows']}
-        #feed_dict = {input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:indicator_ini,theta:results_theta['flows']}
-        feed_dict = {input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:mask,theta:theta_in}
-        '''
-         # using lbfgs update spacial transformer
-        results = stadv.optimization.lbfgs(
-            loss,
-            flows,
-            # random initial guess for the flow
-            flows_x0=np.random.random_sample((seq_len, 2, spec.crop_size,spec.crop_size)),
-            feed_dict={input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:ga['mask'],theta:ga['angle']},
-            grad_op=grad_op,
-            fmin_l_bfgs_b_extra_kwargs={'maxfun':1500},
-            sess=sess
-        )
-        print("Final loss:", results['loss'])
-        print("Optimization info:", results['info'])
-        feed_dict_new = {input_image: images[0:seq_len], input_label: labels, tau: 0.05,indicator:ga['mask'],theta:ga['angle'],flows:results['flows']}
-        '''
         
         
         start_loss = var_loss1
@@ -742,7 +464,7 @@ def calc_gradients(
  
         
        
-        
+        ###### save images #########
         true_im= sess.run(true_image, feed_dict=feed_dict)
         
      
