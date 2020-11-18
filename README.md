@@ -7,8 +7,12 @@ UCF101 can be downloaded and extracted following the instructions in https://git
 
 HMDB51 can be downloaded as RGB images in https://github.com/feichtenhofer/twostreamfusion
 
-UCF101 data can be stored under UCF101/video_data/test 
-HMDB51 data can be stored under HMDB51/video_data/test
+UCF101 data need to be  stored under UCF101/video_data/test 
+HMDB51 data need to be stored under HMDB51/video_data/test
+## checkpoints
+The checkpoints for UCF101 LSTM+CNN can be downloaded in 
+
+
 ## Generate adversarial examples
 python test_gen.py -i video_data -o output/I3D --model i3d_inception --dataset UCF101 --file_list /video_data/batch_test/test_saved.csv
 
