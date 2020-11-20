@@ -8,7 +8,7 @@ import i3d
 sys.path.append(osp.realpath(osp.join(osp.dirname(__file__), './')))
 from tensorflow.python.keras.backend import set_session
 from inception.inception import inception_model
-from googlenet import GoogleNet
+
 from tensorflow.keras.applications.inception_v3 import InceptionV3, preprocess_input
 
 #from vgg import VGG16
@@ -18,7 +18,7 @@ from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 
 from lstm import DynamicRNN
 from lstm import AveragePooling
-from keras_video_classifier.library.recurrent_networks import VGG16LSTMVideoClassifier
+
 from tensorflow.keras.models import Model,load_model
 
 
@@ -81,13 +81,7 @@ def inception_spec(batch_size=25, crop_size=299, bgr=False):
                                    0.]))
 
 
-def std_spec(batch_size, isotropic=True):
-    """Parameters commonly used by "post-AlexNet" architectures."""
-    return DataSpec(
-        batch_size=batch_size,
-        scale_size=256,
-        crop_size=224,
-        isotropic=False)
+
 
 
 # Collection of sample auto-generated models
